@@ -16,3 +16,8 @@ The detailed Software License Agreement can be found at:
 http://www.mathertel.de/License.aspx
 
 
+== Fork ==
+
+This Fork is for Try and Testing 
+Target is using less memory by using a DMXstart-Number 
+Lower Channels shall not stored in Memory. Like higher channels then DMXLENGTH do so. 
