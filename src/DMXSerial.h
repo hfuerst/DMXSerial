@@ -29,6 +29,7 @@
 // 27.08.2017 DMXProbe mode finished.
 // 29.10.2017 documentation.
 // - - - - -
+// HF
 
 #ifndef DmxSerial_h
 #define DmxSerial_h
@@ -100,11 +101,32 @@ class DMXSerialClass
     void    maxChannel (int channel);
 
     /**
+     * @brief Set the used start channel for DMXReceiver mode.
+     * @param [in] channel The first channel that will be stored into RAM. (edited by HF)
+     * @return void
+     */
+    void    set_startChannel (int channel);
+
+    /**
+     * @brief Set the length of used channels for DMXReceiver mode.
+     * @param [in] channel The length of channels that will be stored into RAM. (edited by HF)
+     * @return void
+     */
+    void    set_DMXLength (int channel);
+
+    /**
      * @brief Read the current value of a channel.
      * @param [in] channel The channel number.
      * @return uint8_t The current value.
      */
     uint8_t read       (int channel);
+
+    /**
+     * @brief Read the current value of a channel relative to startChannel.
+     * @param [in] channel The channel number relative to startChannel.
+     * @return uint8_t The current value.
+     */
+    uint8_t readrelative(int channel);
 
     /**
      * @brief Write a new value to a channel.

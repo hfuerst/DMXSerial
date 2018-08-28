@@ -271,12 +271,36 @@ void DMXSerialClass::maxChannel(int channel)
 } // maxChannel
 
 
+//// Read the current value of a channel.
+//uint8_t DMXSerialClass::read(int channel)
+//{
+//  // adjust parameter
+//  channel = channel-(DMXstart+1);
+//  if (channel < 1) channel = 1;
+//  if (channel > DMXSERIAL_MAX) channel = DMXSERIAL_MAX;
+//  // read value from buffer
+//  return(_dmxData[channel]);
+//} // read()
+
 // Read the current value of a channel.
 uint8_t DMXSerialClass::read(int channel)
 {
   // adjust parameter
-  if (channel < 1) channel = 1;
+  if (channel < DMXstart) channel = DMXstart;
   if (channel > DMXSERIAL_MAX) channel = DMXSERIAL_MAX;
+  if (channel > DMXstart+DMXLENGTH) channel = DMXstart+DMXLENGTH;
+  channel = channel-(DMXstart-1);
+  // read value from buffer
+  return(_dmxData[channel]);
+} // read()
+
+// Read the current value of a relative channel.
+// realtive to firstchannel
+uint8_t DMXSerialClass::readrelative(int channel)
+{
+  // adjust parameter
+  if (channel < 0) channel = 0;
+  if (channel > DMXLENGTH-1) channel = DMXLENGTH-1;
   // read value from buffer
   return(_dmxData[channel]);
 } // read()
@@ -285,7 +309,7 @@ uint8_t DMXSerialClass::read(int channel)
 // Write the value into the channel.
 // The value is just stored in the sending buffer and will be picked up
 // by the DMX sending interrupt routine.
-void DMXSerialClass::write(int channel, uint8_t value)
+void DMXSerialClass::write(int channel, uint8_t value)  // ToDo for minimal Storidge
 {
   // adjust parameters
   if (channel < 1) channel = 1;
