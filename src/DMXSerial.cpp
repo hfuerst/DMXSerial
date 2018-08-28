@@ -8,6 +8,7 @@
 // Documentation and samples are available at http://www.mathertel.de/Arduino
 // Changelog: See DMXSerial.h
 // - - - - -
+// HF
 
 #include "Arduino.h"
 
@@ -135,10 +136,19 @@
 
 
 // formats for serial transmission
+// sometimes already defined in Arduino.h
+#if !defined(SERIAL_8N1)
 #define SERIAL_8N1  ((0<<USBSn) | (0<<UPMn0) | (3<<UCSZn0))
+#endif
+#if !defined(SERIAL_8N2)
 #define SERIAL_8N2  ((1<<USBSn) | (0<<UPMn0) | (3<<UCSZn0))
+#endif
+#if !defined(SERIAL_8E1)
 #define SERIAL_8E1  ((0<<USBSn) | (2<<UPMn0) | (3<<UCSZn0))
+#endif
+#if !defined(SERIAL_8E2)
 #define SERIAL_8E2  ((1<<USBSn) | (2<<UPMn0) | (3<<UCSZn0))
+#endif
 
 // the break timing is 10 bits (start + 8 data + parity) of this speed
 // the mark-after-break is 1 bit of this speed plus approx 6 usec
@@ -174,8 +184,10 @@ typedef enum {
 DMXMode  _dmxMode;    // Mode of Operation
 int      _dmxModePin; // pin used for I/O direction.
 
-uint8_t _dmxRecvState;  // Current State of receiving DMX Bytes
-int     _dmxChannel;  // the next channel byte to be sent.
+uint8_t _dmxRecvState;     // Current State of receiving DMX Bytes
+int     _dmxChannel;       // the next channel byte to be sent.
+int     _dmxStartChannel;  // The first channel that will stored, received and sent.
+int     _dmxLength;         // The length of used DMX channels
 
 volatile unsigned int  _dmxMaxChannel = 32; // the last channel used for sending (1..32).
 volatile unsigned long _dmxLastPacket = 0; // the last time (using the millis function) a packet was received.
@@ -231,7 +243,9 @@ void DMXSerialClass::init(int mode, int dmxModePin)
 
   // initialize the DMX buffer
 //  memset(_dmxData, 0, sizeof(_dmxData));
-  for (int n = 0; n < DMXSERIAL_MAX+1; n++)
+//  for (int n = 0; n < DMXSERIAL_MAX+1; n++)
+//    _dmxData[n] = 0;
+  for (int n = 0; n < _dmxLength+1; n++)
     _dmxData[n] = 0;
 
   // now start
@@ -268,8 +282,23 @@ void DMXSerialClass::maxChannel(int channel)
   if (channel > DMXSERIAL_MAX) channel = DMXSERIAL_MAX;
   _dmxMaxChannel = channel;
   _dmxDataLastPtr = _dmxData + channel;
+
 } // maxChannel
 
+
+// Set the start channel.
+// This method can be called any time before or after the init() method. // I hope so. HF
+void DMXSerialClass::set_startChannel(int channel)
+{
+  _dmxStartChannel = channel;
+} // set_startChannel
+
+// Set the length of used channels.
+// This method can be called any time before or after the init() method. // I hope so. HF
+void DMXSerialClass::set_DMXLength(int channel)
+{
+  _dmxLength = channel;
+} // set_DMXLength
 
 //// Read the current value of a channel.
 //uint8_t DMXSerialClass::read(int channel)
@@ -286,10 +315,10 @@ void DMXSerialClass::maxChannel(int channel)
 uint8_t DMXSerialClass::read(int channel)
 {
   // adjust parameter
-  if (channel < DMXstart) channel = DMXstart;
+  if (channel < _dmxStartChannel) channel = _dmxStartChannel;
   if (channel > DMXSERIAL_MAX) channel = DMXSERIAL_MAX;
-  if (channel > DMXstart+DMXLENGTH) channel = DMXstart+DMXLENGTH;
-  channel = channel-(DMXstart-1);
+  if (channel > _dmxStartChannel+_dmxLength) channel = _dmxStartChannel+_dmxLength;
+  channel = channel-(_dmxStartChannel-1);
   // read value from buffer
   return(_dmxData[channel]);
 } // read()
@@ -300,20 +329,44 @@ uint8_t DMXSerialClass::readrelative(int channel)
 {
   // adjust parameter
   if (channel < 0) channel = 0;
-  if (channel > DMXLENGTH-1) channel = DMXLENGTH-1;
+  if (channel > _dmxLength-1) channel = _dmxLength-1;
   // read value from buffer
   return(_dmxData[channel]);
-} // read()
+} // readrelative()
 
 
 // Write the value into the channel.
 // The value is just stored in the sending buffer and will be picked up
 // by the DMX sending interrupt routine.
-void DMXSerialClass::write(int channel, uint8_t value)  // ToDo for minimal Storidge
+//void DMXSerialClass::write(int channel, uint8_t value)  // ToDo for minimal Storidge
+//{
+//  // adjust parameters
+//  if (channel < 1) channel = 1;
+//  if (channel > DMXSERIAL_MAX) channel = DMXSERIAL_MAX;
+//  if (value < 0)   value = 0;
+//  if (value > 255) value = 255;
+//
+//  // store value for later sending
+//  _dmxData[channel] = value;
+//
+//  // Make sure we transmit enough channels for the ones used
+//  if (channel > _dmxMaxChannel) {
+//    _dmxMaxChannel = channel;
+//    _dmxDataLastPtr = _dmxData + _dmxMaxChannel;
+//  } // if
+//} // write()
+
+
+// Write the value into the channel.
+// The value is just stored in the sending buffer and will be picked up
+// by the DMX sending interrupt routine.
+void DMXSerialClass::write(int channel, uint8_t value)
 {
   // adjust parameters
-  if (channel < 1) channel = 1;
+  if (channel < _dmxStartChannel) channel = _dmxStartChannel;
   if (channel > DMXSERIAL_MAX) channel = DMXSERIAL_MAX;
+  if (channel > _dmxStartChannel+_dmxLength) channel = _dmxStartChannel+_dmxLength;
+  channel = channel-(_dmxStartChannel-1);
   if (value < 0)   value = 0;
   if (value > 255) value = 255;
 
