@@ -184,25 +184,31 @@ typedef enum {
 DMXMode  _dmxMode;    // Mode of Operation
 int      _dmxModePin; // pin used for I/O direction.
 
-uint8_t _dmxRecvState;     // Current State of receiving DMX Bytes
-int     _dmxChannel;       // the next channel byte to be sent.
-int     _dmxStartChannel;  // The first channel that will stored, received and sent.
-int     _dmxLength;         // The length of used DMX channels
+uint8_t _dmxRecvState;        // Current State of receiving DMX Bytes
+int     _dmxChannel;          // the next channel byte to be sent.
+uint8_t _dmxStartChannel = 1; // The first channel that will stored, received and sent.
+int     _dmxLength = 4;       // The length of used DMX channels
+int     _dmxMaxChannel = 32;  // the last channel used for sending (1..32).
+uint8_t _dmxCount = _dmxStartChannel;
 
-volatile unsigned int  _dmxMaxChannel = 32; // the last channel used for sending (1..32).
+
 volatile unsigned long _dmxLastPacket = 0; // the last time (using the millis function) a packet was received.
 
 bool _dmxUpdated = true; // is set to true when new data arrived.
 
 // Array of DMX values (raw).
 // Entry 0 will never be used for DMX data but will store the startbyte (0 for DMX mode).
-uint8_t  _dmxData[DMXSERIAL_MAX+1];
+//uint8_t  _dmxData[DMXSERIAL_MAX+1];    //ToDo for low Memory HF
+uint8_t  _dmxData [64];
 
 // This pointer will point to the next byte in _dmxData;
 uint8_t *_dmxDataPtr;
 
 // This pointer will point to the last byte in _dmxData;
 uint8_t *_dmxDataLastPtr;
+
+// This will contain the Bytes of Data
+uint8_t  DmxByte = 0;
 
 // Create a single class instance. Multiple class instances (multiple simultaneous DMX ports) are not supported.
 DMXSerialClass DMXSerial;
@@ -247,6 +253,9 @@ void DMXSerialClass::init(int mode, int dmxModePin)
 //    _dmxData[n] = 0;
   for (int n = 0; n < _dmxLength+1; n++)
     _dmxData[n] = 0;
+//  _dmxData = (uint8_t*)malloc(_dmxLength);   // allocate mem for buffer
+//  memset((uint8_t*)_dmxData, 0, _dmxLength); // fill buffer with 0's
+
 
   // now start
   _dmxMode = (DMXMode)mode;
@@ -311,6 +320,45 @@ void DMXSerialClass::set_DMXLength(int channel)
 //  return(_dmxData[channel]);
 //} // read()
 
+
+/////////////// debug HF ///////////////// ToDo
+
+// Get value of DMXCount for debug
+uint8_t DMXSerialClass::get_DMXCount()
+{
+  return (_dmxCount);
+} // get DMXCount
+
+// Get value of DMXStart for debug
+uint8_t DMXSerialClass::get_DMXStart()
+{
+  uint8_t value = 0;
+  value = _dmxStartChannel;
+  return (value);
+} // get_DMXStart
+
+// Get value of DMXState for debug
+uint8_t DMXSerialClass::get_DMXState()
+{
+  return (_dmxRecvState);
+} // get_DMXState
+
+// Get value of DMXUpdated for debug
+bool DMXSerialClass::get_DMXUpdated()
+{
+  return (_dmxUpdated);
+} // get_DMXUpdated
+
+// Get value of DMXByte for debug
+uint8_t DMXSerialClass::get_DMXByte()
+{
+  return (DmxByte);
+} // get_DMXByte
+
+/////////////////////////////////////////////
+
+
+
 // Read the current value of a channel.
 uint8_t DMXSerialClass::read(int channel)
 {
@@ -367,8 +415,6 @@ void DMXSerialClass::write(int channel, uint8_t value)
   if (channel > DMXSERIAL_MAX) channel = DMXSERIAL_MAX;
   if (channel > _dmxStartChannel+_dmxLength) channel = _dmxStartChannel+_dmxLength;
   channel = channel-(_dmxStartChannel-1);
-  if (value < 0)   value = 0;
-  if (value > 255) value = 255;
 
   // store value for later sending
   _dmxData[channel] = value;
@@ -497,7 +543,7 @@ void _DMXStartReceiving()
   // flush all incomming data packets in the queue
   while (UCSRnA & (1<<RXCn))
     voiddata = UDRn; // get data
-  } // _DMXStartReceiving()
+} // _DMXStartReceiving()
 
 
 // send the next byte after current byte was sent completely.
@@ -514,8 +560,10 @@ inline void _DMXSerialWriteByte(uint8_t data)
 ISR(USARTn_RX_vect)
 {
   uint8_t  USARTstate = UCSRnA;    // get state before data!
-  uint8_t  DmxByte    = UDRn;	   // get data
+//  uint8_t  DmxByte    = UDRn;	   // get data
+  DmxByte    = UDRn;	   // get data
   uint8_t  DmxState   = _dmxRecvState;	//just load once from SRAM to increase speed
+  _dmxCount   = _dmxStartChannel;
 
   if (DmxState == STARTUP) {
     // just ignore any first frame comming in
@@ -526,7 +574,7 @@ ISR(USARTn_RX_vect)
   if (USARTstate & (1<<FEn)) {  	//check for break
     // break condition detected.
     _dmxRecvState = BREAK;
-    _dmxDataPtr = _dmxData;
+    _dmxDataPtr = _dmxData;  // point to Adress of first _dmxData ( _dmxData[0] )
     
   } else if (DmxState == BREAK) {
     // first byte after a break was read.
@@ -534,7 +582,7 @@ ISR(USARTn_RX_vect)
       // normal DMX start code (0) detected
       _dmxRecvState = DATA;
       _dmxLastPacket = millis(); // remember current (relative) time in msecs.
-      _dmxDataPtr++; // start saving data with channel # 1
+      _dmxDataPtr++; // start saving data with usedchannel # 1
 
     } else {
       // This might be a RDM or customer DMX command -> not implemented so wait for next BREAK !
@@ -543,13 +591,16 @@ ISR(USARTn_RX_vect)
 
   } else if (DmxState == DATA) {
     // check for new data
-    if (*_dmxDataPtr != DmxByte) {
-      _dmxUpdated = true;
-      // store received data into dmx data buffer.
-      *_dmxDataPtr = DmxByte;
-    } // if
-    _dmxDataPtr++;
-    
+	if (_dmxCount > 0) _dmxCount--;
+	if (_dmxCount == 0) {
+	  if (*_dmxDataPtr != DmxByte) {
+		  _dmxUpdated = true;
+		  // store received data into dmx data buffer.
+		  *_dmxDataPtr = DmxByte;
+	  } // if
+	  _dmxDataPtr++;
+	} // if
+
     if (_dmxDataPtr > _dmxDataLastPtr) {
       // all channels received.
       _dmxRecvState = DONE;

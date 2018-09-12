@@ -41,8 +41,11 @@
 #define DMXSERIAL_MAX 512 ///< max. number of supported DMX data channels
 
 #define DMXMODEPIN 2     ///< Arduino pin 2 for controlling the data direction is the default value.
-#define DmxModeOut HIGH  ///< set the level to HIGH for outgoing data direction
+#if !defined(HIGH)
+#define HIGH  ///< set the level to HIGH for outgoing data direction
+#endif
 #define DmxModeIn  LOW   ///< set the level to LOW  for incomming data direction
+#define DmxModeOut HIGH  ///< set the level to HIGH for outgoing  data direction
 
 #define DMXPROBE_RECV_MAX 50 // standard maximum of waiting for a DMX packet in DMXPROBE mode.
 
@@ -113,6 +116,17 @@ class DMXSerialClass
      * @return void
      */
     void    set_DMXLength (int channel);
+
+    /**
+	 * @brief Get the actual values for DEBUG.
+	 * @param
+	 * @return
+	 */
+    uint8_t get_DMXCount ();
+    uint8_t get_DMXStart ();
+    uint8_t get_DMXState ();
+    bool get_DMXUpdated ();
+    uint8_t get_DMXByte ();
 
     /**
      * @brief Read the current value of a channel.
